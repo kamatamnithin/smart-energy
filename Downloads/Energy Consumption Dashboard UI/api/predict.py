@@ -125,35 +125,78 @@ def predict():
 # For Vercel serverless
 def handler(event, context):
     """Vercel serverless handler"""
-    from flask import Request
-    from werkzeug.test import EnvironBuilder
-
-    # Convert Vercel event to Flask request
-    if 'body' in event:
-        environ = EnvironBuilder(
-            method=event.get('httpMethod', 'GET'),
-            url=event.get('path', '/'),
-            headers=event.get('headers', {}),
-            data=json.dumps(event.get('body', {})) if isinstance(event.get('body'), dict) else event.get('body', '')
-        ).get_environ()
-    else:
-        environ = EnvironBuilder(
-            method=event.get('httpMethod', 'GET'),
-            url=event.get('path', '/'),
-            headers=event.get('headers', {})
-        ).get_environ()
-
-    # Create Flask request context
-    with app.request_context(environ):
-        try:
-            response = app.full_dispatch_request()
+    try:
+        # Handle CORS preflight
+        if event.get('httpMethod') == 'OPTIONS':
             return {
-                'statusCode': response.status_code,
-                'headers': dict(response.headers),
-                'body': response.get_data(as_text=True)
+                'statusCode': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type'
+                },
+                'body': ''
             }
-        except Exception as e:
+
+        if event.get('httpMethod') == 'GET' and event.get('path', '').endswith('/health'):
             return {
-                'statusCode': 500,
-                'body': json.dumps({'error': str(e)})
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({
+                    'status': 'healthy',
+                    'model_loaded': model is not None,
+                    'timestamp': datetime.now().isoformat()
+                })
             }
+
+        if event.get('httpMethod') == 'POST' and 'body' in event:
+            data = json.loads(event['body']) if isinstance(event['body'], str) else event['body']
+
+            if not data or 'features' not in data:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'success': False, 'error': 'Invalid request'})
+                }
+
+            features_list = data['features']
+            predictions = []
+
+            for idx, features in enumerate(features_list):
+                feature_values = transform_features_for_prediction(features)
+                X = np.array([feature_values])
+                prediction = model.predict(X)[0]
+
+                predictions.append({
+                    'index': idx,
+                    'predicted': float(prediction),
+                    'timestamp': features.get('timestamp')
+                })
+
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({
+                    'success': True,
+                    'predictions': predictions
+                })
+            }
+
+        return {
+            'statusCode': 404,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'error': 'Not found'})
+        }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {'Access-Control-Allow-Origin': '*'},
+            'body': json.dumps({'success': False, 'error': str(e)})
+        }
