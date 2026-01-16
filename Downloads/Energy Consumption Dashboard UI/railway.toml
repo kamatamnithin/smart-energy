@@ -5,6 +5,7 @@ builder = "NIXPACKS"
 startCommand = "python app.py"
 healthcheckPath = "/api/health"
 restartPolicyType = "ON_FAILURE"
+healthcheckTimeout = 300
 
 [build.env]
 PYTHON_VERSION = "3.12"
@@ -14,3 +15,4 @@ FLASK_ENV = "production"
 DEBUG = "False"
 HOST = "0.0.0.0"
 PORT = "8080"
+CORS_ORIGINS = "https://smartenergy-dashboard.vercel.app"
