@@ -8,7 +8,7 @@ restartPolicyType = "ON_FAILURE"
 healthcheckTimeout = 300
 
 [build.env]
-PYTHON_VERSION = "3.12"
+PYTHON_VERSION = "3.11"
 
 [deploy.env]
 FLASK_ENV = "production"
